@@ -35,6 +35,7 @@ describe('ringBuffer', () => {
     expect(buf.between(15, 40).map((e) => e.frame)).toEqual(['f20', 'f30', 'f40'])
     expect(buf.between(0, 5)).toEqual([])
     expect(buf.between(45, 100).map((e) => e.frame)).toEqual(['f50'])
+    expect(buf.oldest().frame).toBe('f20')
   })
 
   it('clear evicts everything', () => {

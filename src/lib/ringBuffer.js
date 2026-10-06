@@ -34,6 +34,10 @@ export function createRingBuffer(capacity, onEvict = () => {}) {
     return at(lo)
   }
 
+  function oldest() {
+    return size === 0 ? null : at(0)
+  }
+
   // Entries with from <= timestamp <= to, oldest first. Used by Save replay.
   function between(from, to) {
     const result = []
@@ -55,6 +59,7 @@ export function createRingBuffer(capacity, onEvict = () => {}) {
   return {
     push,
     closestTo,
+    oldest,
     between,
     clear,
     capacity,

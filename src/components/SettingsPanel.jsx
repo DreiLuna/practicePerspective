@@ -1,7 +1,7 @@
 import { PRESET_CUES } from '../lib/cues.js'
 
-// Delay slider, cue picker, session toggles, and the Save replay button when enabled.
-export default function SettingsPanel({ settings, onChange, canSave, onSaveReplay }) {
+// Delay slider, cue picker, camera picker, session toggles, and the Save replay button when enabled.
+export default function SettingsPanel({ settings, onChange, cameras, activeDeviceId, canSave, saveStatus, onSaveReplay }) {
   const set = (key) => (value) => onChange({ ...settings, [key]: value })
 
   return (
@@ -33,24 +33,49 @@ export default function SettingsPanel({ settings, onChange, canSave, onSaveRepla
           </select>
         </label>
 
+        {cameras.length > 1 && (
+          <label className="field">
+            Camera
+            <select
+              value={settings.deviceId ?? activeDeviceId ?? ''}
+              onChange={(e) => set('deviceId')(e.target.value)}
+            >
+              {cameras.map((cam, i) => (
+                <option key={cam.deviceId} value={cam.deviceId}>
+                  {cam.label || `Camera ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <Toggle label="Mirror video" checked={settings.mirrored} onChange={set('mirrored')} />
         <Toggle label="Frame overlay" checked={settings.overlayEnabled} onChange={set('overlayEnabled')} />
       </div>
 
       {settings.saveReplayEnabled && (
         <div className="save-row">
-          <button className="save-button" disabled={!canSave} onClick={onSaveReplay}>
-            Save replay
+          <button
+            className="save-button"
+            disabled={!canSave || saveStatus === 'saving'}
+            onClick={onSaveReplay}
+          >
+            {saveStatus === 'saving' ? 'Saving…' : 'Save replay'}
           </button>
-          <p className="save-hint">
-            {canSave
-              ? `Saves the last ${settings.delaySeconds}s you watched.`
-              : 'Available once a session has been running for a moment.'}
+          <p className="save-hint" role="status">
+            {saveHint(canSave, saveStatus, settings.delaySeconds)}
           </p>
         </div>
       )}
     </section>
   )
+}
+
+function saveHint(canSave, saveStatus, delaySeconds) {
+  if (saveStatus === 'saved') return 'Saved. It is in your saved replays below.'
+  if (saveStatus === 'failed') return 'That replay could not be saved. Try again.'
+  if (canSave) return `Saves the last ${delaySeconds}s you watched.`
+  return `Available once ${delaySeconds}s of replay has played.`
 }
 
 function Toggle({ label, checked, onChange }) {
