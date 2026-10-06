@@ -14,7 +14,7 @@
   --accent: #5b9bff;
   --radius: 14px;
   --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Fraunces', Georgia, serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
   color-scheme: dark;
 }
 
@@ -71,7 +71,7 @@ input {
 }
 
 .title-rule {
-  width: 48px;
+  width: 160px;
   height: 3px;
   border-radius: 2px;
   background: var(--accent);
