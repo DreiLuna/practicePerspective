@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { drawOverlay, pickGhosts } from '../lib/overlay.js'
 import CameraError from './CameraError.jsx'
 
 // A frame counts as "on time" if it is at most this far past the delay target.
@@ -55,10 +56,17 @@ function DelayedCanvas({ settings, bufferRef }) {
   const [showing, setShowing] = useState(false)
   const delayMs = settings.delaySeconds * 1000
 
-  // Render loop: draw the buffered frame closest to (now - delay).
+  // Overlay settings are read through a ref so toggling them doesn't restart the loop
+  // (which would blank the screen and show the waiting note again).
+  const overlayRef = useRef(null)
+  overlayRef.current = settings.overlayEnabled
+    ? { fps: settings.overlayFps, strength: settings.ghostStrength }
+    : null
+
+  // Render loop: draw the buffered frame closest to (now - delay), plus ghosts if overlay is on.
   useEffect(() => {
     const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { alpha: false })
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     setShowing(false)
     let drewFirst = false
@@ -66,14 +74,17 @@ function DelayedCanvas({ settings, bufferRef }) {
 
     function draw() {
       const target = performance.now() - delayMs
-      const entry = bufferRef.current?.closestTo(target)
+      const buffer = bufferRef.current
+      const entry = buffer?.closestTo(target)
       if (entry && entry.timestamp <= target + FRAME_TOLERANCE_MS) {
         const frame = entry.frame
         if (canvas.width !== frame.width || canvas.height !== frame.height) {
           canvas.width = frame.width
           canvas.height = frame.height
         }
-        ctx.drawImage(frame, 0, 0)
+        const overlay = overlayRef.current
+        if (overlay) drawOverlay(ctx, entry, pickGhosts(buffer, entry, overlay.fps), overlay.strength)
+        else ctx.drawImage(frame, 0, 0)
         if (!drewFirst) {
           drewFirst = true
           setShowing(true)

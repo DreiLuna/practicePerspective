@@ -2,7 +2,7 @@ import { useState } from 'react'
 import SettingsMenu from './SettingsMenu.jsx'
 
 // Log in and settings buttons, fixed to the top-right corner of the viewport.
-export default function AccountBar({ onLogin, saveReplayEnabled, onSaveReplayChange }) {
+export default function AccountBar({ onLogin, settings, onChange }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -21,11 +21,7 @@ export default function AccountBar({ onLogin, saveReplayEnabled, onSaveReplayCha
         </svg>
       </button>
       {menuOpen && (
-        <SettingsMenu
-          saveReplayEnabled={saveReplayEnabled}
-          onSaveReplayChange={onSaveReplayChange}
-          onClose={() => setMenuOpen(false)}
-        />
+        <SettingsMenu settings={settings} onChange={onChange} onClose={() => setMenuOpen(false)} />
       )}
     </nav>
   )

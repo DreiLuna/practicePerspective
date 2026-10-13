@@ -382,6 +382,10 @@ input {
   color: var(--muted);
 }
 
+.menu-field {
+  margin-top: 8px;
+}
+
 /* Saved replay in the video stage */
 
 .replay-video {

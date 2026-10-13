@@ -8,12 +8,15 @@ import { useCamera } from './hooks/useCamera.js'
 import { useFrameBuffer } from './hooks/useFrameBuffer.js'
 import { useWakeLock } from './hooks/useWakeLock.js'
 import { canExportClips, copyFrames, exportClip } from './lib/exportClip.js'
+import { DEFAULT_GHOST_STRENGTH, DEFAULT_OVERLAY_FPS } from './lib/overlay.js'
 import { listReplays, removeReplay, saveReplay as storeReplay } from './lib/replayStore.js'
 
 const DEFAULT_SETTINGS = {
   delaySeconds: 6,
   cue: '',
   overlayEnabled: false,
+  overlayFps: DEFAULT_OVERLAY_FPS,
+  ghostStrength: DEFAULT_GHOST_STRENGTH,
   saveReplayEnabled: false,
   mirrored: false,
   deviceId: null,
@@ -114,10 +117,7 @@ export default function App() {
 
   return (
     <div className="page">
-      <AccountBar
-        saveReplayEnabled={settings.saveReplayEnabled}
-        onSaveReplayChange={(on) => setSettings({ ...settings, saveReplayEnabled: on })}
-      />
+      <AccountBar settings={settings} onChange={setSettings} />
       <main className="page-main">
         <header className="page-header">
           <h1 className="page-title">Practice Perspective</h1>
