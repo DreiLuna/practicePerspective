@@ -1,4 +1,5 @@
 import { PRESET_CUES } from '../lib/cues.js'
+import { MAX_OVERLAY_FPS } from '../lib/overlay.js'
 
 // Delay slider, cue picker, camera picker, session toggles, and the Save replay button when enabled.
 export default function SettingsPanel({ settings, onChange, cameras, activeDeviceId, canSave, saveStatus, onSaveReplay }) {
@@ -51,6 +52,23 @@ export default function SettingsPanel({ settings, onChange, cameras, activeDevic
 
         <Toggle label="Mirror video" checked={settings.mirrored} onChange={set('mirrored')} />
         <Toggle label="Frame overlay" checked={settings.overlayEnabled} onChange={set('overlayEnabled')} />
+
+        {settings.overlayEnabled && (
+          <label className="field">
+            Overlay frames per second
+            <span className="field-range">
+              <input
+                type="range"
+                min="1"
+                max={MAX_OVERLAY_FPS}
+                step="1"
+                value={settings.overlayFps}
+                onChange={(e) => set('overlayFps')(Number(e.target.value))}
+              />
+              <output>{settings.overlayFps}</output>
+            </span>
+          </label>
+        )}
       </div>
 
       {settings.saveReplayEnabled && (

@@ -49,8 +49,11 @@ The app is a single page, top to bottom: title, a 16:9 video stage, a settings p
 
 - Layers several past frames over the current delayed frame at partial transparency, so a jump, swing, or lift appears as a trail of images.
 - Purpose: let the athlete see how they take up space across the whole movement (for example, whether hips move before knees, or whether the bar drifts forward).
-- Configurable: number of ghost frames (default around 5) and spacing between them (default around 150 to 200 ms).
-- Must stay smooth. If it drops frames on a laptop, reduce ghost count or resolution before anything else.
+- The trail always covers the 1 second before the current delayed frame. An **Overlay frames per second** slider (shown under the toggle when overlay is on; 1 to 30, default 5) sets how many frames inside that second become ghosts: 5 means one ghost every 200 ms. The maximum is 30 because that is the capture rate.
+- Blending (`lib/overlay.js`): ghosts are averaged with equal weight, then the current frame is drawn on top. Still parts of the picture stay sharp; only moving parts leave a trail.
+- **Ghost brightness** slider in the gear menu (10% to 80%, default 40%): the share of the picture the ghosts get together; the current frame gets the rest. Because the ghosts split that share, each ghost gets fainter as the overlay rate goes up (at 40% and 5 per second, about 8% each). If trails are too faint in the gym, try `globalCompositeOperation` `'lighten'` or `'darken'` for the ghosts before anything else.
+- Saved replays are the plain frames, without ghosts. Applying the overlay to saved replays belongs with the "overlay two saved replays" idea, since both need a replay player that draws to a canvas.
+- Must stay smooth. If it drops frames on a laptop, lower the overlay rate or resolution before anything else.
 
 ### Save replay
 
