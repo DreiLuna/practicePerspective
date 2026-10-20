@@ -78,6 +78,19 @@ Replaces the earlier "hidden replay mode" idea (hiding the replay so the athlete
 - The delayed session keeps running in the background while a replay is open, so closing it returns straight to the live delay.
 - Each row can be deleted. OPFS shares the site's storage quota, so old replays need a way out.
 
+### Jump analysis (extension, saved replays only)
+
+Added after the MVP was mostly done, on the `replay-jump-analysis` branch. It deliberately goes beyond principle 4 (no numbers) and the old "no pose estimation" scope line, but **only on saved replays**, never on the live delayed feed. The athlete still feels the rep first; measurements are something they choose to look at afterward. This tension is worth discussing in the usability report.
+
+- **Running it:** under an open replay, an **Analyze jumps** button decodes the replay (Mediabunny `CanvasSink`) and runs MediaPipe Pose Landmarker (Full model, VIDEO mode, GPU with CPU fallback) on every frame (`lib/poseAnalysis.js`, loaded on demand). The model (`public/models/pose_landmarker_full.task`) and Wasm are bundled, so nothing goes to a CDN.
+- **Stored** as `<id>.pose.json` next to the replay (landmarks for every frame plus the jumps), with a short jump summary added to the replay's metadata so the list can show "2 jumps, best 31.0 cm". Deleting a replay deletes its analysis.
+- **Jump detection** (`lib/jumpAnalysis.js`, pure and unit tested): the lowest point of each foot (heel or toe, so calf raises don't count) is compared with a floor line (90th percentile of foot height over the clip), in units of leg length so camera distance cancels out. Airborne above 4% of leg length, landed below 2% (hysteresis); median-of-3 smoothing removes single-frame spikes; takeoff and landing are interpolated between frames; flights under 100 ms or over 1.5 s are dropped. A foot with visibility under 0.5 is ignored, so the hidden far foot in side view falls back to the near one.
+- **Two measurements per jump:**
+  1. **Height from air time:** h = g·t²/8. No calibration. About ±4 cm at 30 fps; landing with bent knees inflates it.
+  2. **Pixel displacement:** hip rise (highest hip point vs. median standing hip height) and peak foot clearance, both as a percentage of leg length.
+- **Display:** a skeleton over the replay (blue grounded, orange airborne) with a dashed floor line, Skeleton and Slow motion (0.25x) toggles, and a table with each jump's values and the change from the jump before. Tapping a jump seeks to just before takeoff.
+- **Still to do:** test on real jumps and check against My Jump 2 or a jump mat; compare jumps across replays; consider 60 fps capture for better air-time precision.
+
 ### Future ideas
 
 - **Overlay two saved replays** on top of each other (for example, one at partial transparency) to compare two reps. Not planned for the MVP. Keep the replay player able to grow into this: it should draw replays to a canvas rather than relying only on a plain `<video>` element, so a second replay can be layered in later.
@@ -86,7 +99,7 @@ Replaces the earlier "hidden replay mode" idea (hiding the replay so the athlete
 ### Out of scope for now
 
 - Sharing, cloud upload, trimming or editing saved clips.
-- Pose estimation, skeleton overlays, AI form feedback, scoring, cloud storage.
+- Pose estimation and skeleton overlays on the live delayed feed (saved replays have jump analysis, above), AI form feedback, scoring, cloud storage.
 - Accounts beyond the placeholder Log in button.
 
 ## Tech stack
@@ -128,7 +141,7 @@ Saved replay (selected from the list)
 ### Saving a replay
 
 - Encode from the ring buffer, not from a second recording of the camera. A continuous `MediaRecorder` on the camera cannot be cut cleanly at an arbitrary "N seconds ago" point.
-- Preferred: WebCodecs `VideoEncoder` plus a small muxer library (for example `mp4-muxer` or `webm-muxer`). This encodes faster than real time and uses the real frame timestamps.
+- Implemented with WebCodecs through the Mediabunny library (`lib/exportClip.js`). This encodes faster than real time and uses the real frame timestamps. The browser needs WebCodecs; without it the Save replay button stays disabled.
 - Fallback where WebCodecs is missing: draw the frames in order to an offscreen canvas, record it with `canvas.captureStream()` and `MediaRecorder`. This takes as long as the clip itself.
 - **Eviction must not race the export.** The capture loop keeps closing old bitmaps while an export runs. The frames being saved are the oldest in the buffer, so they are the next to be evicted. Copy them (for example, into `VideoFrame`s) at the moment Save is pressed, before encoding starts.
 - If frames are stored compressed (frame buffer option 3), decode them during export.
@@ -152,10 +165,11 @@ src/
   App.jsx                 # single page; owns settings, the session, and which replay is open
   components/
     AccountBar.jsx        # Log in + settings gear, fixed to the top-right corner
-    SettingsMenu.jsx      # menu opened by the gear; "Save replay" toggle
+    SettingsMenu.jsx      # menu opened by the gear; "Save replay" toggle, ghost brightness
     SettingsPanel.jsx     # delay slider, cue picker, camera picker, mirror/overlay toggles, Save replay button
     PlaybackView.jsx      # 16:9 video stage: start button, then canvas, cue text, delay indicator
-    ReplayPlayer.jsx      # a saved replay in the video stage, with the X to close
+    ReplayPlayer.jsx      # a saved replay in the video stage, with the X to close; skeleton overlay
+    JumpAnalysis.jsx      # panel under a replay: Analyze jumps button and per-jump table
     ReplayList.jsx        # saved replays at the bottom of the page
     CameraError.jsx
   hooks/
@@ -168,6 +182,9 @@ src/
     exportClip.js         # encodes buffered frames into a video file
     replayStore.js        # saved replays: list, save, load, remove (OPFS now, online later)
     cues.js               # preset focus cue list
+    jumpAnalysis.js       # finds jumps in a pose track; air time, height, hip rise (unit tested)
+    poseAnalysis.js       # decodes a replay and runs MediaPipe Pose on every frame
+    skeleton.js           # draws a pose over a replay
   styles/
 ```
 

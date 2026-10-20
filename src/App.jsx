@@ -124,7 +124,7 @@ export default function App() {
           <div className="title-rule"></div>
         </header>
         {openReplay ? (
-          <ReplayPlayer replay={openReplay} onClose={() => setOpenReplayId(null)} />
+          <ReplayPlayer replay={openReplay} onClose={() => setOpenReplayId(null)} onAnalyzed={refreshReplays} />
         ) : (
           <PlaybackView
             settings={settings}
