@@ -10,7 +10,7 @@ The app is not just a video tool. Its purpose is to shape how athletes attend to
 
 ## Core idea and design principles
 
-1. **Feel first, then see.** The video is always a few seconds behind, so nothing useful appears on screen during the movement. The athlete stays inside the rep and looks afterward. Do not add any real-time view that encourages watching mid-movement.
+1. **Feel first, then see.** The video is always a few seconds behind, so nothing useful appears on screen during the movement. The athlete stays inside the rep and looks afterward. Do not add any real-time view that encourages watching mid-movement. The one exception is the Delay off switch in the secret settings (below), kept out of sight on purpose.
 2. **One thing at a time.** Each session has a single focus cue (for example, "watch the bar path"). Never show multiple cues at once.
 3. **A tool that makes itself unnecessary.** The goal is for athletes to need the app less over time. Avoid anything designed to increase engagement or repeat use (streaks, notifications, badges, history feeds). The saved replays list is a deliberate exception: a plain list the athlete chose to build, with no counts, streaks, or prompts to save more.
 4. **No judging.** No scoring, form grading, rep counting, or numbers about performance. The athlete should attend to their body, not a metric.
@@ -31,7 +31,7 @@ The app is not just a video tool. Its purpose is to shape how athletes attend to
 The app is a single page, top to bottom: title, a 16:9 video stage, a settings panel, and the saved replays list. A Log in button and a settings gear are fixed to the top-right corner of the viewport.
 
 - **Settings panel** (below the video):
-  - Delay length slider, 3 to 15 seconds (default 6).
+  - Delay length slider, 3 to 15 seconds (default 6). Labeled "Replay length" when the delay is off, since it then only sets how much Save replay keeps.
   - Focus cue picker (one cue from a short preset list, plus an optional custom text field).
   - Frame overlay toggle.
 - **Delayed playback (video stage)**
@@ -54,6 +54,14 @@ The app is a single page, top to bottom: title, a 16:9 video stage, a settings p
 - **Ghost brightness** slider in the gear menu (10% to 80%, default 40%): the share of the picture the ghosts get together; the current frame gets the rest. Because the ghosts split that share, each ghost gets fainter as the overlay rate goes up (at 40% and 5 per second, about 8% each). If trails are too faint in the gym, try `globalCompositeOperation` `'lighten'` or `'darken'` for the ghosts before anything else.
 - Saved replays are the plain frames, without ghosts. Applying the overlay to saved replays belongs with the "overlay two saved replays" idea, since both need a replay player that draws to a canvas.
 - Must stay smooth. If it drops frames on a laptop, lower the overlay rate or resolution before anything else.
+
+### Secret settings (gear menu)
+
+"Secret settings" is the name for the menu opened by the gear in the top-right corner (`SettingsMenu.jsx`). It holds options that stay out of the main settings panel so testers do not stumble on them:
+
+- **Delay** on/off (on by default). Off makes the video stage live: the render loop draws the newest buffered frame, the indicator reads "Live", and the waiting note is skipped. The buffer is not rebuilt, so switching back and forth keeps the footage. With the delay off, Save replay keeps the last slider-length seconds (captured between now − length and now) and records `delaySeconds: 0` in the replay's metadata.
+- **Save replay** toggle.
+- **Ghost brightness** slider.
 
 ### Save replay
 
@@ -165,7 +173,7 @@ src/
   App.jsx                 # single page; owns settings, the session, and which replay is open
   components/
     AccountBar.jsx        # Log in + settings gear, fixed to the top-right corner
-    SettingsMenu.jsx      # menu opened by the gear; "Save replay" toggle, ghost brightness
+    SettingsMenu.jsx      # "secret settings", opened by the gear: delay on/off, Save replay toggle, ghost brightness
     SettingsPanel.jsx     # delay slider, cue picker, camera picker, mirror/overlay toggles, Save replay button
     PlaybackView.jsx      # 16:9 video stage: start button, then canvas, cue text, delay indicator
     ReplayPlayer.jsx      # a saved replay in the video stage, with the X to close; skeleton overlay

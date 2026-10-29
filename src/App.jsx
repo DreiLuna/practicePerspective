@@ -13,6 +13,7 @@ import { listReplays, removeReplay, saveReplay as storeReplay } from './lib/repl
 
 const DEFAULT_SETTINGS = {
   delaySeconds: 6,
+  delayEnabled: true,
   cue: '',
   overlayEnabled: false,
   overlayFps: DEFAULT_OVERLAY_FPS,
@@ -47,8 +48,13 @@ export default function App() {
     if (camera.stream) video.play().catch(() => {})
   }, [camera.stream])
 
-  // Save replay needs footage from 2 x delay ago (the window that was just shown), so it
-  // turns on once the oldest buffered frame reaches back that far.
+  // With the delay off (secret settings) the video is live, and the delay slider only sets
+  // how much Save replay keeps. The buffer still holds 2 x slider length either way.
+  const clipMs = settings.delaySeconds * 1000
+  const delayMs = settings.delayEnabled ? clipMs : 0
+
+  // Save replay needs footage from (delay + clip length) ago, so it turns on once the
+  // oldest buffered frame reaches back that far.
   const [bufferReady, setBufferReady] = useState(false)
   const [saveStatus, setSaveStatus] = useState('idle') // idle | saving | saved | failed
 
@@ -57,11 +63,11 @@ export default function App() {
     if (!camera.stream) return
     const id = setInterval(() => {
       const oldest = bufferRef.current?.oldest()
-      const needed = performance.now() - 2 * settings.delaySeconds * 1000 + 200
+      const needed = performance.now() - delayMs - clipMs + 200
       setBufferReady(Boolean(oldest) && oldest.timestamp <= needed)
     }, 500)
     return () => clearInterval(id)
-  }, [camera.stream, settings.delaySeconds, bufferRef])
+  }, [camera.stream, delayMs, clipMs, bufferRef])
 
   const refreshReplays = useCallback(() => {
     listReplays().then(setReplays, () => setReplays([]))
@@ -88,14 +94,13 @@ export default function App() {
     refreshReplays()
   }
 
-  // Saves what was on screen for the last `delay` seconds: footage captured between
-  // (now - 2 x delay) and (now - delay).
+  // Saves what was on screen for the last `clip` seconds: footage captured between
+  // (now - delay - clip) and (now - delay). With the delay off, that is just the last clip.
   async function saveReplay() {
     const buffer = bufferRef.current
     if (!buffer || saveStatus === 'saving') return
-    const delayMs = settings.delaySeconds * 1000
     const now = performance.now()
-    const entries = buffer.between(now - 2 * delayMs, now - delayMs)
+    const entries = buffer.between(now - delayMs - clipMs, now - delayMs)
     if (entries.length < 2) return
     const frames = copyFrames(entries) // same tick as the read, before eviction can close them
 
@@ -104,7 +109,7 @@ export default function App() {
       const blob = await exportClip(frames, { mirrored: settings.mirrored })
       await storeReplay(blob, {
         durationMs: entries[entries.length - 1].timestamp - entries[0].timestamp,
-        delaySeconds: settings.delaySeconds,
+        delaySeconds: settings.delayEnabled ? settings.delaySeconds : 0,
         cue: settings.cue,
       })
       refreshReplays()

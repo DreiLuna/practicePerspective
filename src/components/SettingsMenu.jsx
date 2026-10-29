@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { MAX_GHOST_STRENGTH, MIN_GHOST_STRENGTH } from '../lib/overlay.js'
 
-// Menu opened by the gear. Holds options that stay out of the main settings panel.
+// Menu opened by the gear ("secret settings"). Holds options that stay out of the main
+// settings panel.
 export default function SettingsMenu({ settings, onChange, onClose }) {
   const menuRef = useRef(null)
   const set = (key) => (value) => onChange({ ...settings, [key]: value })
@@ -24,6 +25,18 @@ export default function SettingsMenu({ settings, onChange, onClose }) {
 
   return (
     <div id="settings-menu" className="settings-menu" ref={menuRef}>
+      <label className="toggle">
+        Delay
+        <input
+          type="checkbox"
+          checked={settings.delayEnabled}
+          onChange={(e) => set('delayEnabled')(e.target.checked)}
+        />
+      </label>
+      <p className="menu-hint">
+        {settings.delayEnabled ? 'Turn off to watch the camera live.' : 'Off: the video is live, with no delay.'}
+      </p>
+
       <label className="toggle">
         Save replay
         <input

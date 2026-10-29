@@ -10,7 +10,7 @@ export default function SettingsPanel({ settings, onChange, cameras, activeDevic
       <h2 id="settings-heading" className="section-heading">Settings</h2>
       <div className="settings-grid">
         <label className="field">
-          Delay
+          {settings.delayEnabled ? 'Delay' : 'Replay length'}
           <span className="field-range">
             <input
               type="range"
