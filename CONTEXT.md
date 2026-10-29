@@ -10,7 +10,7 @@ The app is not just a video tool. Its purpose is to shape how athletes attend to
 
 ## Core idea and design principles
 
-1. **Feel first, then see.** The video is always a few seconds behind, so nothing useful appears on screen during the movement. The athlete stays inside the rep and looks afterward. Do not add any real-time view that encourages watching mid-movement.
+1. **Feel first, then see.** The video is always a few seconds behind, so nothing useful appears on screen during the movement. The athlete stays inside the rep and looks afterward. Do not add any real-time view that encourages watching mid-movement. The one exception is the Delay off switch in the secret settings (below), kept out of sight on purpose.
 2. **One thing at a time.** Each session has a single focus cue (for example, "watch the bar path"). Never show multiple cues at once.
 3. **A tool that makes itself unnecessary.** The goal is for athletes to need the app less over time. Avoid anything designed to increase engagement or repeat use (streaks, notifications, badges, history feeds). The saved replays list is a deliberate exception: a plain list the athlete chose to build, with no counts, streaks, or prompts to save more.
 4. **No judging.** No scoring, form grading, rep counting, or numbers about performance. The athlete should attend to their body, not a metric.
@@ -28,10 +28,10 @@ The app is not just a video tool. Its purpose is to shape how athletes attend to
 
 ### MVP (required)
 
-The app is a single page, top to bottom: title, a 16:9 video stage, a settings panel, and the saved replays list. A Log in button and a settings gear are fixed to the top-right corner of the viewport.
+The app is a single page, top to bottom: title, a 16:9 video stage, a settings panel, and the saved replays list. A Log in button (the account name once signed in) and a settings gear are fixed to the top-right corner of the viewport.
 
 - **Settings panel** (below the video):
-  - Delay length slider, 3 to 15 seconds (default 6).
+  - Delay length slider, 3 to 15 seconds (default 6). Labeled "Replay length" when the delay is off, since it then only sets how much Save replay keeps.
   - Focus cue picker (one cue from a short preset list, plus an optional custom text field).
   - Frame overlay toggle.
 - **Delayed playback (video stage)**
@@ -54,6 +54,14 @@ The app is a single page, top to bottom: title, a 16:9 video stage, a settings p
 - **Ghost brightness** slider in the gear menu (10% to 80%, default 40%): the share of the picture the ghosts get together; the current frame gets the rest. Because the ghosts split that share, each ghost gets fainter as the overlay rate goes up (at 40% and 5 per second, about 8% each). If trails are too faint in the gym, try `globalCompositeOperation` `'lighten'` or `'darken'` for the ghosts before anything else.
 - Saved replays are the plain frames, without ghosts. Applying the overlay to saved replays belongs with the "overlay two saved replays" idea, since both need a replay player that draws to a canvas.
 - Must stay smooth. If it drops frames on a laptop, lower the overlay rate or resolution before anything else.
+
+### Secret settings (gear menu)
+
+"Secret settings" is the name for the menu opened by the gear in the top-right corner (`SettingsMenu.jsx`). It holds options that stay out of the main settings panel so testers do not stumble on them:
+
+- **Delay** on/off (on by default). Off makes the video stage live: the render loop draws the newest buffered frame, the indicator reads "Live", and the waiting note is skipped. The buffer is not rebuilt, so switching back and forth keeps the footage. With the delay off, Save replay keeps the last slider-length seconds (captured between now − length and now) and records `delaySeconds: 0` in the replay's metadata.
+- **Save replay** toggle.
+- **Ghost brightness** slider.
 
 ### Save replay
 
@@ -78,6 +86,31 @@ Replaces the earlier "hidden replay mode" idea (hiding the replay so the athlete
 - The delayed session keeps running in the background while a replay is open, so closing it returns straight to the live delay.
 - Each row can be deleted. OPFS shares the site's storage quota, so old replays need a way out.
 
+### Jump analysis (extension, saved replays only)
+
+Added after the MVP was mostly done, on the `replay-jump-analysis` branch. It deliberately goes beyond principle 4 (no numbers) and the old "no pose estimation" scope line, but **only on saved replays**, never on the live delayed feed. The athlete still feels the rep first; measurements are something they choose to look at afterward. This tension is worth discussing in the usability report.
+
+- **Running it:** under an open replay, an **Analyze jumps** button decodes the replay (Mediabunny `CanvasSink`) and runs MediaPipe Pose Landmarker (Full model, VIDEO mode, GPU with CPU fallback) on every frame (`lib/poseAnalysis.js`, loaded on demand). The model (`public/models/pose_landmarker_full.task`) and Wasm are bundled, so nothing goes to a CDN.
+- **Stored** as `<id>.pose.json` next to the replay (landmarks for every frame plus the jumps), with a short jump summary added to the replay's metadata so the list can show "2 jumps, best 31.0 cm". Deleting a replay deletes its analysis.
+- **Jump detection** (`lib/jumpAnalysis.js`, pure and unit tested): the lowest point of each foot (heel or toe, so calf raises don't count) is compared with a floor line (90th percentile of foot height over the clip), in units of leg length so camera distance cancels out. Airborne above 4% of leg length, landed below 2% (hysteresis); median-of-3 smoothing removes single-frame spikes; takeoff and landing are interpolated between frames; flights under 100 ms or over 1.5 s are dropped. A foot with visibility under 0.5 is ignored, so the hidden far foot in side view falls back to the near one.
+- **Two measurements per jump:**
+  1. **Height from air time:** h = g·t²/8. No calibration. About ±4 cm at 30 fps; landing with bent knees inflates it.
+  2. **Pixel displacement:** hip rise (highest hip point vs. median standing hip height) and peak foot clearance, both as a percentage of leg length.
+- **Display:** a skeleton over the replay (blue grounded, orange airborne) with a dashed floor line, Skeleton and Slow motion (0.25x) toggles, and a table with each jump's values and the change from the jump before. Tapping a jump seeks to just before takeoff.
+- **Still to do:** test on real jumps and check against My Jump 2 or a jump mat; compare jumps across replays; consider 60 fps capture for better air-time precision.
+
+### Accounts (local only)
+
+Log in is a working, **device-local** login: there is no server, so an account exists only in the browser it was made in. It is there to demo the flow in usability testing and to keep each person's data apart, and it is built so a real backend can replace it.
+
+- **Store** (`lib/accountStore.js`, unit tested): `createAccount`, `signIn`, `signOut`, `currentUser`. Accounts live in `localStorage` (`pp.accounts`, keyed by lowercased email) and the session in `pp.session`. Passwords are never stored, only a PBKDF2-SHA-256 hash (100,000 iterations, random 16-byte salt). Minimum password length is 8. Wrong email and wrong password give the same message. This is not real security: anyone with the device can read browser storage.
+- **Log in dialog** (`LoginDialog.jsx`): a modal with email and password, switching to Create account (adds an optional name). Signed in, the Log in button shows the account name and opens a small menu with Sign out.
+- **What an account gets:**
+  - **Its own replays:** `replayStore.setReplayOwner(id)` points every replay function at `users/<id>/replays/` in OPFS. Signed out, the shared `replays/` folder is used as before. Replays saved while signed out stay with the guest; they do not move into an account.
+  - **Its own settings:** saved to `localStorage` (`pp.settings.<id>`) on every change and restored on sign-in (`lib/settingsStore.js`). The camera choice is not saved, and switching accounts keeps the camera running. Signed-out settings are not saved.
+  - **Jump history** (`JumpHistory.jsx`): below the saved replays, one row per analyzed replay, oldest first, with jump count, best height, best hip rise and average air time, each with the change from the replay before. Built from the jump summary in each replay's metadata.
+- **Moving to a real backend later:** swap `accountStore.js` for Supabase or Firebase auth, and `replayStore.js` / `settingsStore.js` for its database and file storage. Uploading video still needs its own explicit, opt-in privacy decision (principle 6).
+
 ### Future ideas
 
 - **Overlay two saved replays** on top of each other (for example, one at partial transparency) to compare two reps. Not planned for the MVP. Keep the replay player able to grow into this: it should draw replays to a canvas rather than relying only on a plain `<video>` element, so a second replay can be layered in later.
@@ -86,8 +119,8 @@ Replaces the earlier "hidden replay mode" idea (hiding the replay so the athlete
 ### Out of scope for now
 
 - Sharing, cloud upload, trimming or editing saved clips.
-- Pose estimation, skeleton overlays, AI form feedback, scoring, cloud storage.
-- Accounts beyond the placeholder Log in button.
+- Pose estimation and skeleton overlays on the live delayed feed (saved replays have jump analysis, above), AI form feedback, scoring, cloud storage.
+- Online accounts and syncing between devices (accounts are local only for now, see Accounts).
 
 ## Tech stack
 
@@ -128,7 +161,7 @@ Saved replay (selected from the list)
 ### Saving a replay
 
 - Encode from the ring buffer, not from a second recording of the camera. A continuous `MediaRecorder` on the camera cannot be cut cleanly at an arbitrary "N seconds ago" point.
-- Preferred: WebCodecs `VideoEncoder` plus a small muxer library (for example `mp4-muxer` or `webm-muxer`). This encodes faster than real time and uses the real frame timestamps.
+- Implemented with WebCodecs through the Mediabunny library (`lib/exportClip.js`). This encodes faster than real time and uses the real frame timestamps. The browser needs WebCodecs; without it the Save replay button stays disabled.
 - Fallback where WebCodecs is missing: draw the frames in order to an offscreen canvas, record it with `canvas.captureStream()` and `MediaRecorder`. This takes as long as the clip itself.
 - **Eviction must not race the export.** The capture loop keeps closing old bitmaps while an export runs. The frames being saved are the oldest in the buffer, so they are the next to be evicted. Copy them (for example, into `VideoFrame`s) at the moment Save is pressed, before encoding starts.
 - If frames are stored compressed (frame buffer option 3), decode them during export.
@@ -151,11 +184,14 @@ Saved replay (selected from the list)
 src/
   App.jsx                 # single page; owns settings, the session, and which replay is open
   components/
-    AccountBar.jsx        # Log in + settings gear, fixed to the top-right corner
-    SettingsMenu.jsx      # menu opened by the gear; "Save replay" toggle
+    AccountBar.jsx        # Log in (or account name + Sign out) and settings gear, fixed to the top-right corner
+    LoginDialog.jsx       # Log in / Create account modal
+    JumpHistory.jsx       # jump history across the account's analyzed replays
+    SettingsMenu.jsx      # "secret settings", opened by the gear: delay on/off, Save replay toggle, ghost brightness
     SettingsPanel.jsx     # delay slider, cue picker, camera picker, mirror/overlay toggles, Save replay button
     PlaybackView.jsx      # 16:9 video stage: start button, then canvas, cue text, delay indicator
-    ReplayPlayer.jsx      # a saved replay in the video stage, with the X to close
+    ReplayPlayer.jsx      # a saved replay in the video stage, with the X to close; skeleton overlay
+    JumpAnalysis.jsx      # panel under a replay: Analyze jumps button and per-jump table
     ReplayList.jsx        # saved replays at the bottom of the page
     CameraError.jsx
   hooks/
@@ -166,8 +202,13 @@ src/
     ringBuffer.js         # pure data structure, unit tested
     overlay.js            # draws ghost frames onto a canvas context
     exportClip.js         # encodes buffered frames into a video file
-    replayStore.js        # saved replays: list, save, load, remove (OPFS now, online later)
+    replayStore.js        # saved replays: list, save, load, remove (OPFS now, online later), per account
+    accountStore.js       # local accounts: create, sign in/out, current user (unit tested)
+    settingsStore.js      # settings saved per account
     cues.js               # preset focus cue list
+    jumpAnalysis.js       # finds jumps in a pose track; air time, height, hip rise (unit tested)
+    poseAnalysis.js       # decodes a replay and runs MediaPipe Pose on every frame
+    skeleton.js           # draws a pose over a replay
   styles/
 ```
 

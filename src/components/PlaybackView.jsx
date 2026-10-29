@@ -45,7 +45,7 @@ export default function PlaybackView({ settings, running, bufferRef, camera, onS
     <section className="video-stage" aria-label="Video">
       <DelayedCanvas settings={settings} bufferRef={bufferRef} />
       {settings.cue && <p className="video-cue">{settings.cue}</p>}
-      <p className="delay-indicator">{settings.delaySeconds}s behind</p>
+      <p className="delay-indicator">{settings.delayEnabled ? `${settings.delaySeconds}s behind` : 'Live'}</p>
       <button className="pill-button stop-button" onClick={onStop}>Stop</button>
     </section>
   )
@@ -54,7 +54,7 @@ export default function PlaybackView({ settings, running, bufferRef, camera, onS
 function DelayedCanvas({ settings, bufferRef }) {
   const canvasRef = useRef(null)
   const [showing, setShowing] = useState(false)
-  const delayMs = settings.delaySeconds * 1000
+  const delayMs = settings.delayEnabled ? settings.delaySeconds * 1000 : 0
 
   // Overlay settings are read through a ref so toggling them doesn't restart the loop
   // (which would blank the screen and show the waiting note again).
@@ -100,7 +100,7 @@ function DelayedCanvas({ settings, bufferRef }) {
   return (
     <>
       <canvas ref={canvasRef} className={settings.mirrored ? 'delay-canvas mirrored' : 'delay-canvas'} />
-      {!showing && (
+      {!showing && delayMs > 0 && (
         <p className="video-placeholder waiting-note">
           Go ahead and move. Your replay appears {settings.delaySeconds}s later.
         </p>

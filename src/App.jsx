@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AccountBar from './components/AccountBar.jsx'
+import JumpHistory from './components/JumpHistory.jsx'
+import LoginDialog from './components/LoginDialog.jsx'
 import PlaybackView from './components/PlaybackView.jsx'
 import ReplayList from './components/ReplayList.jsx'
 import ReplayPlayer from './components/ReplayPlayer.jsx'
@@ -9,10 +11,15 @@ import { useFrameBuffer } from './hooks/useFrameBuffer.js'
 import { useWakeLock } from './hooks/useWakeLock.js'
 import { canExportClips, copyFrames, exportClip } from './lib/exportClip.js'
 import { DEFAULT_GHOST_STRENGTH, DEFAULT_OVERLAY_FPS } from './lib/overlay.js'
-import { listReplays, removeReplay, saveReplay as storeReplay } from './lib/replayStore.js'
+import { createAccountStore } from './lib/accountStore.js'
+import { listReplays, removeReplay, saveReplay as storeReplay, setReplayOwner } from './lib/replayStore.js'
+import { loadSettings, saveSettings } from './lib/settingsStore.js'
+
+const accounts = createAccountStore(window.localStorage)
 
 const DEFAULT_SETTINGS = {
   delaySeconds: 6,
+  delayEnabled: true,
   cue: '',
   overlayEnabled: false,
   overlayFps: DEFAULT_OVERLAY_FPS,
@@ -25,7 +32,15 @@ const DEFAULT_SETTINGS = {
 // One page: video stage, settings, saved replays. App owns the session (camera + frame
 // buffer) so it keeps running while a saved replay is open in the video stage.
 export default function App() {
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  // The signed-in account (local only, see lib/accountStore.js). Replays and settings
+  // belong to it; signed out, the app works as before with the shared replays folder.
+  const [user, setUser] = useState(() => {
+    const current = accounts.currentUser()
+    setReplayOwner(current?.id)
+    return current
+  })
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [settings, setSettings] = useState(() => (user ? loadSettings(user.id, DEFAULT_SETTINGS) : DEFAULT_SETTINGS))
   const [running, setRunning] = useState(false)
   const [replays, setReplays] = useState([])
   const [openReplayId, setOpenReplayId] = useState(null)
@@ -47,8 +62,13 @@ export default function App() {
     if (camera.stream) video.play().catch(() => {})
   }, [camera.stream])
 
-  // Save replay needs footage from 2 x delay ago (the window that was just shown), so it
-  // turns on once the oldest buffered frame reaches back that far.
+  // With the delay off (secret settings) the video is live, and the delay slider only sets
+  // how much Save replay keeps. The buffer still holds 2 x slider length either way.
+  const clipMs = settings.delaySeconds * 1000
+  const delayMs = settings.delayEnabled ? clipMs : 0
+
+  // Save replay needs footage from (delay + clip length) ago, so it turns on once the
+  // oldest buffered frame reaches back that far.
   const [bufferReady, setBufferReady] = useState(false)
   const [saveStatus, setSaveStatus] = useState('idle') // idle | saving | saved | failed
 
@@ -57,17 +77,40 @@ export default function App() {
     if (!camera.stream) return
     const id = setInterval(() => {
       const oldest = bufferRef.current?.oldest()
-      const needed = performance.now() - 2 * settings.delaySeconds * 1000 + 200
+      const needed = performance.now() - delayMs - clipMs + 200
       setBufferReady(Boolean(oldest) && oldest.timestamp <= needed)
     }, 500)
     return () => clearInterval(id)
-  }, [camera.stream, settings.delaySeconds, bufferRef])
+  }, [camera.stream, delayMs, clipMs, bufferRef])
 
   const refreshReplays = useCallback(() => {
     listReplays().then(setReplays, () => setReplays([]))
   }, [])
 
   useEffect(refreshReplays, [refreshReplays])
+
+  useEffect(() => {
+    if (user) saveSettings(user.id, settings)
+  }, [user, settings])
+
+  // Switches whose replays and settings are shown. The camera session keeps running.
+  function switchUser(next) {
+    setReplayOwner(next?.id)
+    setUser(next)
+    // Keep the camera that is in use: switching accounts should not restart it.
+    setSettings((current) => ({
+      ...(next ? loadSettings(next.id, DEFAULT_SETTINGS) : DEFAULT_SETTINGS),
+      deviceId: current.deviceId,
+    }))
+    setOpenReplayId(null)
+    setLoginOpen(false)
+    refreshReplays()
+  }
+
+  function signOut() {
+    accounts.signOut()
+    switchUser(null)
+  }
 
   // Let the "Saved" note fade back to the normal hint after a few seconds.
   useEffect(() => {
@@ -88,14 +131,13 @@ export default function App() {
     refreshReplays()
   }
 
-  // Saves what was on screen for the last `delay` seconds: footage captured between
-  // (now - 2 x delay) and (now - delay).
+  // Saves what was on screen for the last `clip` seconds: footage captured between
+  // (now - delay - clip) and (now - delay). With the delay off, that is just the last clip.
   async function saveReplay() {
     const buffer = bufferRef.current
     if (!buffer || saveStatus === 'saving') return
-    const delayMs = settings.delaySeconds * 1000
     const now = performance.now()
-    const entries = buffer.between(now - 2 * delayMs, now - delayMs)
+    const entries = buffer.between(now - delayMs - clipMs, now - delayMs)
     if (entries.length < 2) return
     const frames = copyFrames(entries) // same tick as the read, before eviction can close them
 
@@ -104,7 +146,7 @@ export default function App() {
       const blob = await exportClip(frames, { mirrored: settings.mirrored })
       await storeReplay(blob, {
         durationMs: entries[entries.length - 1].timestamp - entries[0].timestamp,
-        delaySeconds: settings.delaySeconds,
+        delaySeconds: settings.delayEnabled ? settings.delaySeconds : 0,
         cue: settings.cue,
       })
       refreshReplays()
@@ -117,14 +159,21 @@ export default function App() {
 
   return (
     <div className="page">
-      <AccountBar settings={settings} onChange={setSettings} />
+      <AccountBar
+        user={user}
+        onLogin={() => setLoginOpen(true)}
+        onSignOut={signOut}
+        settings={settings}
+        onChange={setSettings}
+      />
+      {loginOpen && <LoginDialog accounts={accounts} onSignedIn={switchUser} onClose={() => setLoginOpen(false)} />}
       <main className="page-main">
         <header className="page-header">
           <h1 className="page-title">Practice Perspective</h1>
           <div className="title-rule"></div>
         </header>
         {openReplay ? (
-          <ReplayPlayer replay={openReplay} onClose={() => setOpenReplayId(null)} />
+          <ReplayPlayer replay={openReplay} onClose={() => setOpenReplayId(null)} onAnalyzed={refreshReplays} />
         ) : (
           <PlaybackView
             settings={settings}
@@ -151,6 +200,7 @@ export default function App() {
           onToggle={toggleReplay}
           onDelete={deleteReplay}
         />
+        {user && <JumpHistory replays={replays} />}
       </main>
     </div>
   )

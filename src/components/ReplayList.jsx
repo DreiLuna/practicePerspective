@@ -22,6 +22,7 @@ export default function ReplayList({ replays, openReplayId, onToggle, onDelete }
                 <span className="replay-meta">
                   {formatDuration(replay.durationMs)}
                   {replay.cue && ` · ${replay.cue}`}
+                  {replay.jumps && ` · ${formatJumps(replay.jumps)}`}
                 </span>
               </button>
               <button
@@ -67,6 +68,13 @@ function formatSavedAt(savedAt) {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+// Summary saved by jump analysis: count, and the highest jump by air time.
+function formatJumps(jumps) {
+  if (!jumps.length) return 'no jumps found'
+  const best = Math.max(...jumps.map((j) => j.heightCm))
+  return `${jumps.length} ${jumps.length === 1 ? 'jump' : 'jumps'}, best ${best.toFixed(1)} cm`
 }
 
 function formatDuration(ms) {
