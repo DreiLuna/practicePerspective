@@ -582,3 +582,72 @@ input {
   font-size: 14px;
   color: var(--faint);
 }
+
+/* Log in dialog */
+
+.login-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.55);
+}
+
+.login-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.login-form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px 24px;
+}
+
+.login-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.login-form input {
+  height: 48px;
+  padding: 0 14px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;
+}
+
+.login-form input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.login-error {
+  margin: 0;
+  font-size: 14px;
+  color: #ff8a80;
+}
+
+.login-switch {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.link-button {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AccountBar from './components/AccountBar.jsx'
+import JumpHistory from './components/JumpHistory.jsx'
+import LoginDialog from './components/LoginDialog.jsx'
 import PlaybackView from './components/PlaybackView.jsx'
 import ReplayList from './components/ReplayList.jsx'
 import ReplayPlayer from './components/ReplayPlayer.jsx'
@@ -9,7 +11,11 @@ import { useFrameBuffer } from './hooks/useFrameBuffer.js'
 import { useWakeLock } from './hooks/useWakeLock.js'
 import { canExportClips, copyFrames, exportClip } from './lib/exportClip.js'
 import { DEFAULT_GHOST_STRENGTH, DEFAULT_OVERLAY_FPS } from './lib/overlay.js'
-import { listReplays, removeReplay, saveReplay as storeReplay } from './lib/replayStore.js'
+import { createAccountStore } from './lib/accountStore.js'
+import { listReplays, removeReplay, saveReplay as storeReplay, setReplayOwner } from './lib/replayStore.js'
+import { loadSettings, saveSettings } from './lib/settingsStore.js'
+
+const accounts = createAccountStore(window.localStorage)
 
 const DEFAULT_SETTINGS = {
   delaySeconds: 6,
@@ -26,7 +32,15 @@ const DEFAULT_SETTINGS = {
 // One page: video stage, settings, saved replays. App owns the session (camera + frame
 // buffer) so it keeps running while a saved replay is open in the video stage.
 export default function App() {
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  // The signed-in account (local only, see lib/accountStore.js). Replays and settings
+  // belong to it; signed out, the app works as before with the shared replays folder.
+  const [user, setUser] = useState(() => {
+    const current = accounts.currentUser()
+    setReplayOwner(current?.id)
+    return current
+  })
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [settings, setSettings] = useState(() => (user ? loadSettings(user.id, DEFAULT_SETTINGS) : DEFAULT_SETTINGS))
   const [running, setRunning] = useState(false)
   const [replays, setReplays] = useState([])
   const [openReplayId, setOpenReplayId] = useState(null)
@@ -75,6 +89,29 @@ export default function App() {
 
   useEffect(refreshReplays, [refreshReplays])
 
+  useEffect(() => {
+    if (user) saveSettings(user.id, settings)
+  }, [user, settings])
+
+  // Switches whose replays and settings are shown. The camera session keeps running.
+  function switchUser(next) {
+    setReplayOwner(next?.id)
+    setUser(next)
+    // Keep the camera that is in use: switching accounts should not restart it.
+    setSettings((current) => ({
+      ...(next ? loadSettings(next.id, DEFAULT_SETTINGS) : DEFAULT_SETTINGS),
+      deviceId: current.deviceId,
+    }))
+    setOpenReplayId(null)
+    setLoginOpen(false)
+    refreshReplays()
+  }
+
+  function signOut() {
+    accounts.signOut()
+    switchUser(null)
+  }
+
   // Let the "Saved" note fade back to the normal hint after a few seconds.
   useEffect(() => {
     if (saveStatus !== 'saved') return
@@ -122,7 +159,14 @@ export default function App() {
 
   return (
     <div className="page">
-      <AccountBar settings={settings} onChange={setSettings} />
+      <AccountBar
+        user={user}
+        onLogin={() => setLoginOpen(true)}
+        onSignOut={signOut}
+        settings={settings}
+        onChange={setSettings}
+      />
+      {loginOpen && <LoginDialog accounts={accounts} onSignedIn={switchUser} onClose={() => setLoginOpen(false)} />}
       <main className="page-main">
         <header className="page-header">
           <h1 className="page-title">Practice Perspective</h1>
@@ -156,6 +200,7 @@ export default function App() {
           onToggle={toggleReplay}
           onDelete={deleteReplay}
         />
+        {user && <JumpHistory replays={replays} />}
       </main>
     </div>
   )

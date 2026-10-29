@@ -28,7 +28,7 @@ The app is not just a video tool. Its purpose is to shape how athletes attend to
 
 ### MVP (required)
 
-The app is a single page, top to bottom: title, a 16:9 video stage, a settings panel, and the saved replays list. A Log in button and a settings gear are fixed to the top-right corner of the viewport.
+The app is a single page, top to bottom: title, a 16:9 video stage, a settings panel, and the saved replays list. A Log in button (the account name once signed in) and a settings gear are fixed to the top-right corner of the viewport.
 
 - **Settings panel** (below the video):
   - Delay length slider, 3 to 15 seconds (default 6). Labeled "Replay length" when the delay is off, since it then only sets how much Save replay keeps.
@@ -99,6 +99,18 @@ Added after the MVP was mostly done, on the `replay-jump-analysis` branch. It de
 - **Display:** a skeleton over the replay (blue grounded, orange airborne) with a dashed floor line, Skeleton and Slow motion (0.25x) toggles, and a table with each jump's values and the change from the jump before. Tapping a jump seeks to just before takeoff.
 - **Still to do:** test on real jumps and check against My Jump 2 or a jump mat; compare jumps across replays; consider 60 fps capture for better air-time precision.
 
+### Accounts (local only)
+
+Log in is a working, **device-local** login: there is no server, so an account exists only in the browser it was made in. It is there to demo the flow in usability testing and to keep each person's data apart, and it is built so a real backend can replace it.
+
+- **Store** (`lib/accountStore.js`, unit tested): `createAccount`, `signIn`, `signOut`, `currentUser`. Accounts live in `localStorage` (`pp.accounts`, keyed by lowercased email) and the session in `pp.session`. Passwords are never stored, only a PBKDF2-SHA-256 hash (100,000 iterations, random 16-byte salt). Minimum password length is 8. Wrong email and wrong password give the same message. This is not real security: anyone with the device can read browser storage.
+- **Log in dialog** (`LoginDialog.jsx`): a modal with email and password, switching to Create account (adds an optional name). Signed in, the Log in button shows the account name and opens a small menu with Sign out.
+- **What an account gets:**
+  - **Its own replays:** `replayStore.setReplayOwner(id)` points every replay function at `users/<id>/replays/` in OPFS. Signed out, the shared `replays/` folder is used as before. Replays saved while signed out stay with the guest; they do not move into an account.
+  - **Its own settings:** saved to `localStorage` (`pp.settings.<id>`) on every change and restored on sign-in (`lib/settingsStore.js`). The camera choice is not saved, and switching accounts keeps the camera running. Signed-out settings are not saved.
+  - **Jump history** (`JumpHistory.jsx`): below the saved replays, one row per analyzed replay, oldest first, with jump count, best height, best hip rise and average air time, each with the change from the replay before. Built from the jump summary in each replay's metadata.
+- **Moving to a real backend later:** swap `accountStore.js` for Supabase or Firebase auth, and `replayStore.js` / `settingsStore.js` for its database and file storage. Uploading video still needs its own explicit, opt-in privacy decision (principle 6).
+
 ### Future ideas
 
 - **Overlay two saved replays** on top of each other (for example, one at partial transparency) to compare two reps. Not planned for the MVP. Keep the replay player able to grow into this: it should draw replays to a canvas rather than relying only on a plain `<video>` element, so a second replay can be layered in later.
@@ -108,7 +120,7 @@ Added after the MVP was mostly done, on the `replay-jump-analysis` branch. It de
 
 - Sharing, cloud upload, trimming or editing saved clips.
 - Pose estimation and skeleton overlays on the live delayed feed (saved replays have jump analysis, above), AI form feedback, scoring, cloud storage.
-- Accounts beyond the placeholder Log in button.
+- Online accounts and syncing between devices (accounts are local only for now, see Accounts).
 
 ## Tech stack
 
@@ -172,7 +184,9 @@ Saved replay (selected from the list)
 src/
   App.jsx                 # single page; owns settings, the session, and which replay is open
   components/
-    AccountBar.jsx        # Log in + settings gear, fixed to the top-right corner
+    AccountBar.jsx        # Log in (or account name + Sign out) and settings gear, fixed to the top-right corner
+    LoginDialog.jsx       # Log in / Create account modal
+    JumpHistory.jsx       # jump history across the account's analyzed replays
     SettingsMenu.jsx      # "secret settings", opened by the gear: delay on/off, Save replay toggle, ghost brightness
     SettingsPanel.jsx     # delay slider, cue picker, camera picker, mirror/overlay toggles, Save replay button
     PlaybackView.jsx      # 16:9 video stage: start button, then canvas, cue text, delay indicator
@@ -188,7 +202,9 @@ src/
     ringBuffer.js         # pure data structure, unit tested
     overlay.js            # draws ghost frames onto a canvas context
     exportClip.js         # encodes buffered frames into a video file
-    replayStore.js        # saved replays: list, save, load, remove (OPFS now, online later)
+    replayStore.js        # saved replays: list, save, load, remove (OPFS now, online later), per account
+    accountStore.js       # local accounts: create, sign in/out, current user (unit tested)
+    settingsStore.js      # settings saved per account
     cues.js               # preset focus cue list
     jumpAnalysis.js       # finds jumps in a pose track; air time, height, hip rise (unit tested)
     poseAnalysis.js       # decodes a replay and runs MediaPipe Pose on every frame

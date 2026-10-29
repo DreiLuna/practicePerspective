@@ -7,9 +7,20 @@
 const FOLDER = 'replays'
 const POSE_SUFFIX = '.pose.json'
 
+// Whose replays the functions below read and write. Signed out, it is the shared
+// `replays/` folder; signed in, `users/<id>/replays/`, so each account sees only its own.
+let owner = null
+
+export function setReplayOwner(userId) {
+  owner = userId ?? null
+}
+
 async function folder() {
   const root = await navigator.storage.getDirectory()
-  return root.getDirectoryHandle(FOLDER, { create: true })
+  if (!owner) return root.getDirectoryHandle(FOLDER, { create: true })
+  const users = await root.getDirectoryHandle('users', { create: true })
+  const user = await users.getDirectoryHandle(owner, { create: true })
+  return user.getDirectoryHandle(FOLDER, { create: true })
 }
 
 async function writeFile(dir, name, data) {
