@@ -1,23 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { drawOverlay, pickGhosts } from '../lib/overlay.js'
 import CameraError from './CameraError.jsx'
+import { PlayIcon } from './icons.jsx'
 
 // A frame counts as "on time" if it is at most this far past the delay target.
 // Keeps the screen blank until the buffer really reaches back `delay` seconds.
 const FRAME_TOLERANCE_MS = 100
 
-// 16:9 video stage: play button before a session; delayed canvas, cue and delay indicator during one.
-export default function PlaybackView({ settings, running, bufferRef, camera, onStart, onStop }) {
+// 16:9 video stage: start button before a session; delayed canvas, cue and delay badge during one.
+export default function PlaybackView({ settings, running, bufferRef, camera, onStart }) {
   if (!running) {
     return (
       <section className="video-stage" aria-label="Video">
         <div className="video-placeholder">
-          <button className="play-button" aria-label="Start delayed video" onClick={onStart}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-              <path d="M8 5.5v13l10.5-6.5z" />
-            </svg>
+          <button className="start-button" aria-label="Start session" onClick={onStart}>
+            <PlayIcon />
           </button>
-          <span>Start</span>
+          <span>
+            {settings.delayEnabled
+              ? `Start, then move. Your replay appears ${settings.delaySeconds} s later.`
+              : 'Start the camera.'}
+          </span>
         </div>
       </section>
     )
@@ -27,7 +30,6 @@ export default function PlaybackView({ settings, running, bufferRef, camera, onS
     return (
       <section className="video-stage" aria-label="Video">
         <CameraError error={camera.error} onRetry={camera.retry} />
-        <button className="pill-button stop-button" onClick={onStop}>Stop</button>
       </section>
     )
   }
@@ -36,7 +38,6 @@ export default function PlaybackView({ settings, running, bufferRef, camera, onS
     return (
       <section className="video-stage" aria-label="Video">
         <p className="video-placeholder">Starting camera…</p>
-        <button className="pill-button stop-button" onClick={onStop}>Stop</button>
       </section>
     )
   }
@@ -44,9 +45,17 @@ export default function PlaybackView({ settings, running, bufferRef, camera, onS
   return (
     <section className="video-stage" aria-label="Video">
       <DelayedCanvas settings={settings} bufferRef={bufferRef} />
-      {settings.cue && <p className="video-cue">{settings.cue}</p>}
-      <p className="delay-indicator">{settings.delayEnabled ? `${settings.delaySeconds}s behind` : 'Live'}</p>
-      <button className="pill-button stop-button" onClick={onStop}>Stop</button>
+      {settings.cue && <p className="stage-cue">{settings.cue}</p>}
+      <p className={settings.delayEnabled ? 'badge stage-badge accent' : 'badge stage-badge'}>
+        {settings.delayEnabled ? (
+          `${settings.delaySeconds} s behind`
+        ) : (
+          <>
+            <span className="badge-dot" aria-hidden="true" />
+            Live
+          </>
+        )}
+      </p>
     </section>
   )
 }
@@ -102,7 +111,7 @@ function DelayedCanvas({ settings, bufferRef }) {
       <canvas ref={canvasRef} className={settings.mirrored ? 'delay-canvas mirrored' : 'delay-canvas'} />
       {!showing && delayMs > 0 && (
         <p className="video-placeholder waiting-note">
-          Go ahead and move. Your replay appears {settings.delaySeconds}s later.
+          Go ahead and move. Your replay appears {settings.delaySeconds} s later.
         </p>
       )}
     </>

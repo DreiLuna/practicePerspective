@@ -3,7 +3,7 @@ export default function CameraError({ error, onRetry }) {
   return (
     <div className="camera-error" role="alert">
       <p>{error}</p>
-      {onRetry && <button className="pill-button" onClick={onRetry}>Try again</button>}
+      {onRetry && <button className="btn btn-secondary" onClick={onRetry}>Try again</button>}
     </div>
   )
 }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { AccountError, MIN_PASSWORD_LENGTH } from '../lib/accountStore.js'
+import { CloseIcon } from './icons.jsx'
 
-// Sign in / create account, in a modal dialog opened by the Log in button.
-export default function LoginDialog({ accounts, onSignedIn, onClose }) {
+// Log in / create account, in a modal dialog.
+export default function LoginDialog({ accounts, initialMode = 'signIn', onSignedIn, onClose }) {
   const dialogRef = useRef(null)
-  const [mode, setMode] = useState('signIn') // signIn | create
+  const [mode, setMode] = useState(initialMode) // signIn | create
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -56,7 +57,7 @@ export default function LoginDialog({ accounts, onSignedIn, onClose }) {
         {creating && (
           <label className="field">
             Name
-            <input name="name" autoComplete="name" />
+            <input type="text" name="name" autoComplete="name" />
           </label>
         )}
         <label className="field">
@@ -74,24 +75,22 @@ export default function LoginDialog({ accounts, onSignedIn, onClose }) {
           />
         </label>
 
-        {error && <p className="login-error" role="alert">{error}</p>}
+        {error && <p className="error-text" role="alert">{error}</p>}
 
-        <button className="save-button" type="submit" disabled={busy}>
+        <button className="btn btn-primary" type="submit" disabled={busy}>
           {busy ? 'One moment…' : creating ? 'Create account' : 'Log in'}
         </button>
 
-        <p className="login-switch">
+        <p className="hint">
           {creating ? 'Already have an account?' : 'New here?'}{' '}
           <button type="button" className="link-button" onClick={() => switchMode(creating ? 'signIn' : 'create')}>
             {creating ? 'Log in' : 'Create an account'}
           </button>
         </p>
-        <p className="menu-hint">Accounts are kept on this device only.</p>
+        <p className="note">Accounts are kept on this device only.</p>
 
-        <button type="button" className="icon-button close-button" aria-label="Close" onClick={onClose}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
+        <button type="button" className="icon-btn login-close" aria-label="Close" onClick={onClose}>
+          <CloseIcon />
         </button>
       </form>
     </dialog>
