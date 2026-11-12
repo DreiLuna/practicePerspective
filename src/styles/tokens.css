@@ -1,0 +1,84 @@
+/* Design tokens. Every color in the app comes from here, so light and dark share the same
+   component styles. The theme follows the device unless Account › Appearance sets
+   data-theme="light" or "dark" on <html> (see lib/theme.js). */
+
+:root {
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-pill: 999px;
+
+  /* 48 px minimum touch target: the device is often several meters away, hands sweaty. */
+  --control-h: 52px;
+  --control-h-lg: 64px;
+  --target: 48px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* The video area stays dark in both themes, so overlays on it use fixed colors. */
+  --video: #0a0b0d;
+  --on-video: #eceef1;
+  --on-video-scrim: rgb(10 11 13 / 0.72);
+}
+
+:root,
+:root[data-theme='dark'] {
+  --bg: #111316;
+  --surface: #1a1d22;
+  --raised: #23272e;
+  --border: #2e333b;
+  --text: #eceef1;
+  --muted: #a6adb8;
+  --faint: #8b93a0;
+  --accent: #5b9bff;
+  --on-accent: #0b1220;
+  --accent-soft: rgb(91 155 255 / 0.16);
+  --air: #ffb347;
+  --danger: #ff8a80;
+  --shadow: 0 16px 40px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --raised: #eef0f3;
+    --border: #d5dae1;
+    --text: #14171b;
+    --muted: #4f5866;
+    --faint: #5f6876;
+    --accent: #1f6feb;
+    --on-accent: #ffffff;
+    --accent-soft: rgb(31 111 235 / 0.1);
+    --air: #b35c00;
+    --danger: #c2362b;
+    --shadow: 0 16px 40px rgb(20 23 27 / 0.14);
+    color-scheme: light;
+  }
+}
+
+:root[data-theme='light'] {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --raised: #eef0f3;
+  --border: #d5dae1;
+  --text: #14171b;
+  --muted: #4f5866;
+  --faint: #5f6876;
+  --accent: #1f6feb;
+  --on-accent: #ffffff;
+  --accent-soft: rgb(31 111 235 / 0.1);
+  --air: #b35c00;
+  --danger: #c2362b;
+  --shadow: 0 16px 40px rgb(20 23 27 / 0.14);
+  color-scheme: light;
+}

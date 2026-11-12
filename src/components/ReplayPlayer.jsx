@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { ANALYSIS_VERSION, airborneMask } from '../lib/jumpAnalysis.js'
 import { loadAnalysis, loadReplay, saveAnalysis } from '../lib/replayStore.js'
 import { drawSkeleton, frameAt } from '../lib/skeleton.js'
+import { DownloadIcon, TrashIcon } from './icons.jsx'
 import JumpAnalysis from './JumpAnalysis.jsx'
+import { formatSavedAt } from './ReplayList.jsx'
 
-// A saved replay shown in the video stage in place of the delayed feed, on loop.
-// Below it, jump analysis: pose estimation over the whole replay, a skeleton drawn on the
-// video, and air time / height / hip rise for each jump.
-export default function ReplayPlayer({ replay, onClose, onAnalyzed }) {
+// A saved replay on loop, with a toolbar (skeleton, slow motion, analyze, download, delete)
+// and, once analyzed, the jump table: pose estimation over the whole replay, a skeleton
+// drawn on the video, and air time / height / hip rise for each jump.
+export default function ReplayPlayer({ replay, onAnalyzed, onDelete }) {
   const [file, setFile] = useState(null)
   const [src, setSrc] = useState(null)
   const [failed, setFailed] = useState(false)
@@ -107,31 +109,50 @@ export default function ReplayPlayer({ replay, onClose, onAnalyzed }) {
     video.play().catch(() => {})
   }
 
+  function download() {
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const analyzing = status === 'analyzing'
+  const when = formatSavedAt(replay.savedAt)
+
   return (
-    <>
-      <section className="video-stage" aria-label="Saved replay">
+    <section className="replay-detail" aria-label={`Replay from ${when}`}>
+      <div className="video-stage">
         {src && <video ref={videoRef} className="replay-video" src={src} autoPlay loop muted playsInline />}
         {analysis && showSkeleton && <canvas ref={canvasRef} className="skeleton-canvas" aria-hidden="true" />}
         {failed && <p className="video-placeholder">This replay could not be loaded.</p>}
-        {replay.cue && <p className="video-cue">{replay.cue}</p>}
-        <button className="icon-button close-button" aria-label="Close replay" onClick={onClose}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
+        {replay.cue && <p className="stage-cue">{replay.cue}</p>}
+      </div>
+
+      <div className="toolbar">
+        {analysis && (
+          <button className="pill" aria-pressed={showSkeleton} onClick={() => setShowSkeleton(!showSkeleton)}>
+            Skeleton
+          </button>
+        )}
+        <button className="pill" aria-pressed={slow} onClick={() => setSlow(!slow)}>
+          Slow motion
         </button>
-      </section>
-      <JumpAnalysis
-        analysis={analysis}
-        status={status}
-        progress={progress}
-        canAnalyze={Boolean(file)}
-        onAnalyze={analyze}
-        showSkeleton={showSkeleton}
-        onShowSkeleton={setShowSkeleton}
-        slow={slow}
-        onSlow={setSlow}
-        onSeek={seekTo}
-      />
-    </>
+        <span className="toolbar-spacer" />
+        <button className="btn btn-secondary" disabled={!file || analyzing} onClick={analyze}>
+          {analyzing ? `Analyzing… ${Math.round(progress * 100)}%` : analysis ? 'Analyze again' : 'Analyze jumps'}
+        </button>
+        <button className="icon-btn square" aria-label={`Download replay from ${when}`} disabled={!file} onClick={download}>
+          <DownloadIcon />
+        </button>
+        <button className="icon-btn square danger" aria-label={`Delete replay from ${when}`} onClick={onDelete}>
+          <TrashIcon />
+        </button>
+      </div>
+
+      <JumpAnalysis analysis={analysis} status={status} onSeek={seekTo} />
+    </section>
   )
 }

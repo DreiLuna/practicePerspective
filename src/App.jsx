@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import AccountBar from './components/AccountBar.jsx'
-import JumpHistory from './components/JumpHistory.jsx'
+import AccountTab from './components/AccountTab.jsx'
 import LoginDialog from './components/LoginDialog.jsx'
-import PlaybackView from './components/PlaybackView.jsx'
-import ReplayList from './components/ReplayList.jsx'
-import ReplayPlayer from './components/ReplayPlayer.jsx'
-import SettingsPanel from './components/SettingsPanel.jsx'
+import ProgressTab from './components/ProgressTab.jsx'
+import ReplaysTab from './components/ReplaysTab.jsx'
+import SessionTab from './components/SessionTab.jsx'
+import TabBar, { TABS } from './components/TabBar.jsx'
+import TopBar from './components/TopBar.jsx'
+import Welcome, { shouldShowWelcome } from './components/Welcome.jsx'
 import { useCamera } from './hooks/useCamera.js'
 import { useFrameBuffer } from './hooks/useFrameBuffer.js'
 import { useWakeLock } from './hooks/useWakeLock.js'
@@ -14,6 +15,7 @@ import { DEFAULT_GHOST_STRENGTH, DEFAULT_OVERLAY_FPS } from './lib/overlay.js'
 import { createAccountStore } from './lib/accountStore.js'
 import { listReplays, removeReplay, saveReplay as storeReplay, setReplayOwner } from './lib/replayStore.js'
 import { loadSettings, saveSettings } from './lib/settingsStore.js'
+import { applyThemeMode, loadThemeMode, saveThemeMode } from './lib/theme.js'
 
 const accounts = createAccountStore(window.localStorage)
 
@@ -29,24 +31,34 @@ const DEFAULT_SETTINGS = {
   deviceId: null,
 }
 
-// One page: video stage, settings, saved replays. App owns the session (camera + frame
-// buffer) so it keeps running while a saved replay is open in the video stage.
+// The tab lives in the URL hash so the browser's back button moves between tabs.
+function tabFromHash() {
+  const id = window.location.hash.slice(1)
+  return TABS.some((t) => t.id === id) ? id : 'session'
+}
+
+// Four tabs (Session, Replays, Progress, Account) under one top bar, after a welcome
+// screen on the first visit. App owns the session (camera + frame buffer) so it keeps
+// running on every tab.
 export default function App() {
   // The signed-in account (local only, see lib/accountStore.js). Replays and settings
-  // belong to it; signed out, the app works as before with the shared replays folder.
+  // belong to it; signed out, the app uses the shared replays folder.
   const [user, setUser] = useState(() => {
     const current = accounts.currentUser()
     setReplayOwner(current?.id)
     return current
   })
-  const [loginOpen, setLoginOpen] = useState(false)
+  const [login, setLogin] = useState(null) // null | 'signIn' | 'create'
   const [settings, setSettings] = useState(() => (user ? loadSettings(user.id, DEFAULT_SETTINGS) : DEFAULT_SETTINGS))
+  const [themeMode, setThemeMode] = useState(loadThemeMode)
+  const [tab, setTab] = useState(tabFromHash)
+  const [welcomeOpen, setWelcomeOpen] = useState(shouldShowWelcome)
   const [running, setRunning] = useState(false)
   const [replays, setReplays] = useState([])
-  const [openReplayId, setOpenReplayId] = useState(null)
+  const [selectedReplayId, setSelectedReplayId] = useState(null)
 
-  // The session: camera -> hidden <video> -> frame buffer. Lives here, not in PlaybackView,
-  // so it keeps running while a saved replay is open in the video stage.
+  // The session: camera -> hidden <video> -> frame buffer. Lives here, not in a tab,
+  // so it keeps running while another tab is open.
   const videoRef = useRef(null)
   const camera = useCamera({ active: running, deviceId: settings.deviceId })
   const bufferRef = useFrameBuffer({
@@ -61,6 +73,26 @@ export default function App() {
     video.srcObject = camera.stream
     if (camera.stream) video.play().catch(() => {})
   }, [camera.stream])
+
+  useEffect(() => {
+    applyThemeMode(themeMode)
+  }, [themeMode])
+
+  useEffect(() => {
+    const onHashChange = () => setTab(tabFromHash())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  function selectTab(id) {
+    window.location.hash = id
+    setTab(id)
+  }
+
+  function changeThemeMode(mode) {
+    setThemeMode(mode)
+    saveThemeMode(mode)
+  }
 
   // With the delay off (secret settings) the video is live, and the delay slider only sets
   // how much Save replay keeps. The buffer still holds 2 x slider length either way.
@@ -102,8 +134,8 @@ export default function App() {
       ...(next ? loadSettings(next.id, DEFAULT_SETTINGS) : DEFAULT_SETTINGS),
       deviceId: current.deviceId,
     }))
-    setOpenReplayId(null)
-    setLoginOpen(false)
+    setSelectedReplayId(null)
+    setLogin(null)
     refreshReplays()
   }
 
@@ -119,14 +151,8 @@ export default function App() {
     return () => clearTimeout(id)
   }, [saveStatus])
 
-  const openReplay = replays.find((r) => r.id === openReplayId) ?? null
-
-  function toggleReplay(id) {
-    setOpenReplayId((current) => (current === id ? null : id))
-  }
-
   async function deleteReplay(id) {
-    if (openReplayId === id) setOpenReplayId(null)
+    if (selectedReplayId === id) setSelectedReplayId(null)
     await removeReplay(id)
     refreshReplays()
   }
@@ -157,51 +183,82 @@ export default function App() {
     }
   }
 
+  const loginDialog = login && (
+    <LoginDialog
+      key={login}
+      accounts={accounts}
+      initialMode={login}
+      onSignedIn={switchUser}
+      onClose={() => setLogin(null)}
+    />
+  )
+
+  // The hidden camera <video> is rendered first, in the same place on every screen, so
+  // React keeps the same element and the session never loses its stream.
+  const cameraSource = <video ref={videoRef} className="camera-source" muted playsInline autoPlay aria-hidden="true" />
+
   return (
-    <div className="page">
-      <AccountBar
-        user={user}
-        onLogin={() => setLoginOpen(true)}
-        onSignOut={signOut}
-        settings={settings}
-        onChange={setSettings}
-      />
-      {loginOpen && <LoginDialog accounts={accounts} onSignedIn={switchUser} onClose={() => setLoginOpen(false)} />}
-      <main className="page-main">
-        <header className="page-header">
-          <h1 className="page-title">Practice Perspective</h1>
-          <div className="title-rule"></div>
-        </header>
-        {openReplay ? (
-          <ReplayPlayer replay={openReplay} onClose={() => setOpenReplayId(null)} onAnalyzed={refreshReplays} />
-        ) : (
-          <PlaybackView
+    <>
+      {cameraSource}
+      {welcomeOpen ? (
+        <Welcome
+          onStart={() => {
+            setWelcomeOpen(false)
+            selectTab('session')
+          }}
+          onLogin={user ? null : () => setLogin('signIn')}
+        />
+      ) : (
+        <div className="app">
+          <TopBar
+            user={user}
+            onAccount={() => selectTab('account')}
+            onLogin={() => setLogin('signIn')}
             settings={settings}
-            running={running}
-            bufferRef={bufferRef}
-            camera={camera}
-            onStart={() => setRunning(true)}
-            onStop={() => setRunning(false)}
+            onChange={setSettings}
           />
-        )}
-        <video ref={videoRef} className="camera-source" muted playsInline autoPlay aria-hidden="true" />
-        <SettingsPanel
-          settings={settings}
-          onChange={setSettings}
-          cameras={camera.devices}
-          activeDeviceId={camera.activeDeviceId}
-          canSave={running && bufferReady && canExportClips()}
-          saveStatus={saveStatus}
-          onSaveReplay={saveReplay}
-        />
-        <ReplayList
-          replays={replays}
-          openReplayId={openReplayId}
-          onToggle={toggleReplay}
-          onDelete={deleteReplay}
-        />
-        {user && <JumpHistory replays={replays} />}
-      </main>
-    </div>
+          <main className="app-main">
+            {tab === 'session' && (
+              <SessionTab
+                settings={settings}
+                onChange={setSettings}
+                running={running}
+                onStart={() => setRunning(true)}
+                onStop={() => setRunning(false)}
+                bufferRef={bufferRef}
+                camera={camera}
+                canSave={running && bufferReady && canExportClips()}
+                saveStatus={saveStatus}
+                onSaveReplay={saveReplay}
+              />
+            )}
+            {tab === 'replays' && (
+              <ReplaysTab
+                replays={replays}
+                selectedId={selectedReplayId}
+                onSelect={setSelectedReplayId}
+                onDelete={deleteReplay}
+                onAnalyzed={refreshReplays}
+              />
+            )}
+            {tab === 'progress' && <ProgressTab replays={replays} />}
+            {tab === 'account' && (
+              <AccountTab
+                user={user}
+                onLogin={() => setLogin('signIn')}
+                onCreateAccount={() => setLogin('create')}
+                onSignOut={signOut}
+                themeMode={themeMode}
+                onThemeMode={changeThemeMode}
+                replays={replays}
+                onShowWelcome={() => setWelcomeOpen(true)}
+              />
+            )}
+          </main>
+          <TabBar current={tab} onSelect={selectTab} />
+        </div>
+      )}
+      {loginDialog}
+    </>
   )
 }

@@ -14,7 +14,7 @@ The app is not just a video tool. Its purpose is to shape how athletes attend to
 2. **One thing at a time.** Each session has a single focus cue (for example, "watch the bar path"). Never show multiple cues at once.
 3. **A tool that makes itself unnecessary.** The goal is for athletes to need the app less over time. Avoid anything designed to increase engagement or repeat use (streaks, notifications, badges, history feeds). The saved replays list is a deliberate exception: a plain list the athlete chose to build, with no counts, streaks, or prompts to save more.
 4. **No judging.** No scoring, form grading, rep counting, or numbers about performance. The athlete should attend to their body, not a metric.
-5. **Calm and plain UI.** Dark background, large video, minimal text, no clutter.
+5. **Calm and plain UI.** Large video, minimal text, no clutter. Light and dark themes from one token set (see Interface system); the video area stays dark in both.
 6. **Private by default.** Video never leaves the device. No uploads, no analytics, no network calls with camera data. Saved replays are stored on the device only for now (see Saved replays). Moving them to an online database later would need its own explicit, opt-in decision.
 
 ## Target users and environment
@@ -28,17 +28,17 @@ The app is not just a video tool. Its purpose is to shape how athletes attend to
 
 ### MVP (required)
 
-The app is a single page, top to bottom: title, a 16:9 video stage, a settings panel, and the saved replays list. A Log in button (the account name once signed in) and a settings gear are fixed to the top-right corner of the viewport.
+The app has four tabs (Session, Replays, Progress, Account) under a top bar, after a one-screen welcome on the first visit. See Interface system for the layout. The top bar holds the app name, a Log in button (the account name once signed in) and the settings gear.
 
-- **Settings panel** (below the video):
+- **Session settings** (beside the video on the Session tab, below it on narrow screens):
   - Delay length slider, 3 to 15 seconds (default 6). Labeled "Replay length" when the delay is off, since it then only sets how much Save replay keeps.
   - Focus cue picker (one cue from a short preset list, plus an optional custom text field).
   - Frame overlay toggle.
 - **Delayed playback (video stage)**
-  - A play button starts the session; it can go full screen.
-  - Chosen cue shown in small text along the top.
-  - Small indicator showing how far behind the video is (for example, "6s behind").
-  - Stop button to end the session.
+  - A play button in the video area, or the Start button under it, starts the session.
+  - Chosen cue shown in a small pill along the top.
+  - A badge showing how far behind the video is ("6 s behind"), or "Live" with the delay off.
+  - The Start button becomes Stop during a session.
 - **Camera handling**
   - Request camera with `getUserMedia`.
   - Camera selector if multiple cameras are available (front/back on tablets).
@@ -67,7 +67,7 @@ The app is a single page, top to bottom: title, a 16:9 video stage, a settings p
 
 Replaces the earlier "hidden replay mode" idea (hiding the replay so the athlete guesses before revealing it), which has been dropped.
 
-- **Turning it on:** the gear menu (top-right) has a "Save replay" toggle, off by default. When it is on, a **Save replay** button appears in the settings panel under the video, where it is easy to reach during a session.
+- **Turning it on:** the gear menu (top-right) has a "Save replay" toggle, off by default. When it is on, a **Save replay** button appears next to Start/Stop under the video on the Session tab, where it is easy to reach during a session.
 - **What gets saved:** the replay the athlete just watched, meaning whatever was on screen during the last `delay` seconds. The athlete does the rep, watches it come up on the delayed feed, then presses Save. Example with a 6 s delay, Save pressed at time C:
   - The buffer holds footage captured from C−12 to C.
   - The screen showed the C−12 to C−6 footage during the last 6 seconds.
@@ -81,16 +81,16 @@ Replaces the earlier "hidden replay mode" idea (hiding the replay so the athlete
 
 - **Where they live:** a designated `replays/` folder in the browser's Origin Private File System (OPFS). OPFS works in Chrome and Safari (including iPad), needs no permission prompt, and survives reloads. It is private to the app, so the folder does not appear in Finder or File Explorer; each replay has a Download action to get a copy out.
 - **Swappable storage:** all storage goes through one module (`lib/replayStore.js`: list, save, load, remove) so it can move to an online database later without touching the UI. Each replay is stored as its video file plus a small metadata record (id, saved time, duration, delay used, cue if any).
-- **List at the bottom of the page**, below the settings panel, newest first. Each row shows when it was saved, its length, and the cue if one was set.
-- **Watching one:** selecting a row shows that replay in the video stage in place of the delayed feed, playing on loop. Selecting the same row again closes it; selecting another row switches to it. An **X button in the top-right corner of the video stage** closes the replay and returns to the delayed feed.
-- The delayed session keeps running in the background while a replay is open, so closing it returns straight to the live delay.
+- **Replays tab:** the list on the left, newest first, the selected replay on the right (stacked on narrow screens). Each row shows when it was saved, its length, the cue if one was set, and a jump summary once analyzed. The newest replay is selected when nothing else is.
+- **Watching one:** the selected replay plays on loop, with a toolbar under it: Skeleton and Slow motion toggles, Analyze jumps, Download and Delete.
+- The delayed session keeps running in the background on every tab, so going back to Session returns straight to the live delay.
 - Each row can be deleted. OPFS shares the site's storage quota, so old replays need a way out.
 
 ### Jump analysis (extension, saved replays only)
 
 Added after the MVP was mostly done, on the `replay-jump-analysis` branch. It deliberately goes beyond principle 4 (no numbers) and the old "no pose estimation" scope line, but **only on saved replays**, never on the live delayed feed. The athlete still feels the rep first; measurements are something they choose to look at afterward. This tension is worth discussing in the usability report.
 
-- **Running it:** under an open replay, an **Analyze jumps** button decodes the replay (Mediabunny `CanvasSink`) and runs MediaPipe Pose Landmarker (Full model, VIDEO mode, GPU with CPU fallback) on every frame (`lib/poseAnalysis.js`, loaded on demand). The model (`public/models/pose_landmarker_full.task`) and Wasm are bundled, so nothing goes to a CDN.
+- **Running it:** in the toolbar under a replay, an **Analyze jumps** button decodes the replay (Mediabunny `CanvasSink`) and runs MediaPipe Pose Landmarker (Full model, VIDEO mode, GPU with CPU fallback) on every frame (`lib/poseAnalysis.js`, loaded on demand). The model (`public/models/pose_landmarker_full.task`) and Wasm are bundled, so nothing goes to a CDN.
 - **Stored** as `<id>.pose.json` next to the replay (landmarks for every frame plus the jumps), with a short jump summary added to the replay's metadata so the list can show "2 jumps, best 31.0 cm". Deleting a replay deletes its analysis.
 - **Jump detection** (`lib/jumpAnalysis.js`, pure and unit tested): the lowest point of each foot (heel or toe, so calf raises don't count) is compared with a floor line (90th percentile of foot height over the clip), in units of leg length so camera distance cancels out. Airborne above 4% of leg length, landed below 2% (hysteresis); median-of-3 smoothing removes single-frame spikes; takeoff and landing are interpolated between frames; flights under 100 ms or over 1.5 s are dropped. A foot with visibility under 0.5 is ignored, so the hidden far foot in side view falls back to the near one.
 - **Two measurements per jump:**
@@ -104,12 +104,25 @@ Added after the MVP was mostly done, on the `replay-jump-analysis` branch. It de
 Log in is a working, **device-local** login: there is no server, so an account exists only in the browser it was made in. It is there to demo the flow in usability testing and to keep each person's data apart, and it is built so a real backend can replace it.
 
 - **Store** (`lib/accountStore.js`, unit tested): `createAccount`, `signIn`, `signOut`, `currentUser`. Accounts live in `localStorage` (`pp.accounts`, keyed by lowercased email) and the session in `pp.session`. Passwords are never stored, only a PBKDF2-SHA-256 hash (100,000 iterations, random 16-byte salt). Minimum password length is 8. Wrong email and wrong password give the same message. This is not real security: anyone with the device can read browser storage.
-- **Log in dialog** (`LoginDialog.jsx`): a modal with email and password, switching to Create account (adds an optional name). Signed in, the Log in button shows the account name and opens a small menu with Sign out.
+- **Log in dialog** (`LoginDialog.jsx`): a modal with email and password, switching to Create account (adds an optional name). It opens from the top bar's Log in button or the Account tab. Signed in, the top bar shows the account name, which opens the Account tab; Sign out is there.
 - **What an account gets:**
   - **Its own replays:** `replayStore.setReplayOwner(id)` points every replay function at `users/<id>/replays/` in OPFS. Signed out, the shared `replays/` folder is used as before. Replays saved while signed out stay with the guest; they do not move into an account.
   - **Its own settings:** saved to `localStorage` (`pp.settings.<id>`) on every change and restored on sign-in (`lib/settingsStore.js`). The camera choice is not saved, and switching accounts keeps the camera running. Signed-out settings are not saved.
-  - **Jump history** (`JumpHistory.jsx`): below the saved replays, one row per analyzed replay, oldest first, with jump count, best height, best hip rise and average air time, each with the change from the replay before. Built from the jump summary in each replay's metadata.
+  - **Jump history** (Progress tab, `ProgressTab.jsx`): a bar chart of the last 8 analyzed replays (switch between best height, hip rise and air time) and a table of all of them, newest first, with jump count, best height, best hip rise and average air time, each with the change from the replay before. Built from the jump summary in each replay's metadata. It shows the current replays whether or not someone is signed in.
 - **Moving to a real backend later:** swap `accountStore.js` for Supabase or Firebase auth, and `replayStore.js` / `settingsStore.js` for its database and file storage. Uploading video still needs its own explicit, opt-in privacy decision (principle 6).
+
+### Interface system
+
+Built on the `new-ui` branch from a design canvas (tokens, components, and every screen in both themes).
+
+- **Tokens** (`styles/tokens.css`): every color, radius, control height and spacing step is a CSS custom property. Dark and light sets share the same names; components never use raw colors. 48 px minimum touch targets, 52 px controls, 64 px primary buttons, 17 px body text, for a tablet a few meters away.
+- **Themes** (`lib/theme.js`): System (default, follows the device), Light or Dark, chosen in Account > Appearance. Stored per device in `localStorage` (`pp.theme`), not per account, and applied as `data-theme` on `<html>`. The browser's theme color follows. The video area and its overlays stay dark in both themes.
+- **Type:** Space Grotesk for the app name, page headings and the welcome title; IBM Plex Sans for everything else.
+- **Shared controls** (`components/controls.jsx`): `Switch` (a whole-row on/off button with `role="switch"`), `Slider`, `Segmented` and `Delta`. Icons are inline stroke SVGs in `components/icons.jsx`.
+- **Layout:** a top bar (app name, account button, gear), the current tab (scrolls on its own), and a bottom tab bar. The tab is in the URL hash (`#session`, `#replays`, `#progress`, `#account`), so the browser's back button works. Designed for an iPad in landscape (1194 x 834, where Session fits without scrolling); under 900 px wide the two-column tabs stack.
+- **Tabs:** Session (video, Start/Stop, Save replay, session settings), Replays (list, player, jump analysis), Progress (jump history), Account (profile or Log in / Create account, Appearance, what is stored, How it works).
+- **Welcome** (`Welcome.jsx`): one screen on the first visit: "Do the rep. Then see it.", three short steps, Start, and "Don't show this again" (`pp.welcomeDone`). Account > How it works opens it again.
+- The hidden camera `<video>` is rendered in the same place on every screen, so switching between the welcome screen and the tabs never drops the camera stream.
 
 ### Future ideas
 
@@ -182,17 +195,23 @@ Saved replay (selected from the list)
 
 ```
 src/
-  App.jsx                 # single page; owns settings, the session, and which replay is open
+  App.jsx                 # owns settings, the session, the account, the current tab and the welcome screen
   components/
-    AccountBar.jsx        # Log in (or account name + Sign out) and settings gear, fixed to the top-right corner
-    LoginDialog.jsx       # Log in / Create account modal
-    JumpHistory.jsx       # jump history across the account's analyzed replays
+    TopBar.jsx            # app name, Log in / account name, settings gear
+    TabBar.jsx            # Session, Replays, Progress, Account
     SettingsMenu.jsx      # "secret settings", opened by the gear: delay on/off, Save replay toggle, ghost brightness
-    SettingsPanel.jsx     # delay slider, cue picker, camera picker, mirror/overlay toggles, Save replay button
-    PlaybackView.jsx      # 16:9 video stage: start button, then canvas, cue text, delay indicator
-    ReplayPlayer.jsx      # a saved replay in the video stage, with the X to close; skeleton overlay
-    JumpAnalysis.jsx      # panel under a replay: Analyze jumps button and per-jump table
-    ReplayList.jsx        # saved replays at the bottom of the page
+    SessionTab.jsx        # video stage, Start/Stop and Save replay, session settings
+    PlaybackView.jsx      # 16:9 video stage: start button, then canvas, cue, delay badge
+    ReplaysTab.jsx        # replay list beside the selected replay
+    ReplayList.jsx        # saved replays, newest first
+    ReplayPlayer.jsx      # a saved replay on loop: skeleton overlay, toolbar
+    JumpAnalysis.jsx      # per-jump table under a replay
+    ProgressTab.jsx       # jump history chart and table
+    AccountTab.jsx        # profile, appearance, data, How it works
+    LoginDialog.jsx       # Log in / Create account modal
+    Welcome.jsx           # first-visit welcome screen
+    controls.jsx          # Switch, Slider, Segmented, Delta
+    icons.jsx             # stroke icons
     CameraError.jsx
   hooks/
     useCamera.js          # getUserMedia, device list, cleanup
@@ -209,7 +228,10 @@ src/
     jumpAnalysis.js       # finds jumps in a pose track; air time, height, hip rise (unit tested)
     poseAnalysis.js       # decodes a replay and runs MediaPipe Pose on every frame
     skeleton.js           # draws a pose over a replay
+    theme.js              # System / Light / Dark theme
   styles/
+    tokens.css            # design tokens, light and dark
+    global.css            # component and layout styles
 ```
 
 Keep the buffer, overlay, and export logic in plain JS modules outside React so they are easy to test and do not re-render on every frame. React state should only hold settings and UI state, never frames.
