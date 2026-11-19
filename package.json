@@ -8,6 +8,7 @@
     "dev:lan": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "vite build && vite preview --port 5173 --strictPort --open",
     "test": "vitest"
   },
   "dependencies": {
